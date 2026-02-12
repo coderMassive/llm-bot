@@ -1,5 +1,5 @@
 # llm-bot
-LLM Discord Bot for your servers!
+Locally Hosted LLM Discord Bot for your servers!
 
 ## Setup:
 1. Create a Python environment and install the packages in requirements.txt

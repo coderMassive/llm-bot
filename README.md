@@ -1,6 +1,8 @@
 # llm-bot
 Locally Hosted LLM Discord Bot for your servers!
 
+Ping with @username for the bot to respond. It can see the entire reply chain as context.
+
 ## Setup:
 1. Create a Python environment and install the packages in requirements.txt
 2. Install Ollama (if needed) and a model
@@ -12,5 +14,11 @@ Locally Hosted LLM Discord Bot for your servers!
 8. Create a `.env` file, and put in `BOT_KEY=TOKEN HERE`
 9. Run the bot server with `python main.py`
 
-## Usage:
-Ping with @username for the bot to respond. It can see the entire reply chain as context.
+## Features:
+- Responds to messages with a locally hosted Ollama model
+- Sees reply chain as context
+- Queues messages when there's a lot coming in at the same time
+- Splits long output among several Discord messages when needed due to the message character limit
+
+## Roadmap:
+- Allow the model to search for information on the web

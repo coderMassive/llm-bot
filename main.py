@@ -3,6 +3,7 @@ import ollama
 import argparse
 import asyncio
 import os
+import random
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,6 +18,12 @@ class MyClient(discord.Client):
         super().__init__(*args, **kwargs)
         self.request_queue = asyncio.Queue()
         self.worker_task = None
+        self.maintenance_messages = [
+            "I'm currently under maintenance. Should be back up soon! Thanks for waiting!",
+            "I'm being updated rn... pls be patient, ty!",
+            "Go touch some grass while I'm going through maintenance",
+            "Hi :D. you should wait until i'm done being maintained."
+        ]
 
     async def setup_hook(self):
         self.worker_task = asyncio.create_task(self.queue_worker())
@@ -26,35 +33,36 @@ class MyClient(discord.Client):
             message, messages_payload = await self.request_queue.get()
 
             try:
-                response = await asyncio.to_thread(
-                    ollama.chat,
-                    model='gpt-oss:20b',
-                    messages=messages_payload
-                )
+                async with message.channel.typing():
+                    response = await asyncio.to_thread(
+                        ollama.chat,
+                        model=os.getenv("MODEL"),
+                        messages=messages_payload
+                    )
 
-                if args.debug:
-                    await message.reply(response)
+                    if args.debug:
+                        await message.reply(response)
 
-                response_content = response['message']['content']
+                    response_content = response['message']['content']
 
-                await message.reply(response_content[0:2000])
-                for i in range(2000, len(response_content), 2000):
-                    await message.channel.send(response_content[i:i+2000])
+                    await message.reply(response_content[0:2000])
+                    for i in range(2000, len(response_content), 2000):
+                        await message.channel.send(response_content[i:i+2000])
 
             except Exception as e:
                 await message.reply(f"Error: {e}")
 
             self.request_queue.task_done()
 
-    async def on_message(self, message):
+    async def on_message(self, message: discord.Message):
         if message.author == self.user:
             return
 
-        if "<@1471265965583896801>" not in message.content:
+        if f"<@{self.user.id}>" not in message.content:
             return
 
         if args.maintenance:
-            await message.reply("I'm currently under maintenance. Should be back up soon! Thanks for waiting!")
+            await message.reply(random.choice(self.maintenance_messages))
             return
 
         messages = []
@@ -69,7 +77,7 @@ class MyClient(discord.Client):
             else:
                 messages.insert(0, {
                     'role': 'user',
-                    'content': current_msg.content.replace("<@1471265965583896801>", "")
+                    'content': current_msg.content.replace(f"<@{self.user.id}>", "")
                 })
 
             if current_msg.reference and current_msg.reference.message_id:

@@ -14,8 +14,12 @@ Ping with @username for the bot to respond. It can see the entire reply chain as
 8. Create a `.env` file, and put in `BOT_KEY=TOKEN HERE`
 9. Run the bot server with `python main.py`
 
+### Some potential pointers
+1. Be sure to allow both user install and guild install.
+2. From there, you can simply use the install link in `Installation` tab in settings.
+
 ## Features:
-- Responds to messages with a locally hosted Ollama model
+- Responds to messages with a Ollama model
 - Sees reply chain as context
 - Queues messages when there's a lot coming in at the same time
 - Splits long output among several Discord messages when needed due to the message character limit

@@ -4,6 +4,8 @@ import argparse
 import asyncio
 import os
 import random
+
+from search import search
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -34,20 +36,47 @@ class MyClient(discord.Client):
 
             try:
                 async with message.channel.typing():
-                    response = await asyncio.to_thread(
-                        ollama.chat,
-                        model=os.getenv("MODEL"),
-                        messages=messages_payload
-                    )
+                    final_content = None
+                    
+                    while True:
+                        response = await asyncio.to_thread(
+                            ollama.chat,
+                            model=os.getenv("MODEL"),
+                            messages=messages_payload,
+                            tools=[search] # Function passed here
+                        )
 
+                        messages_payload.append(response.message)
+                        
+                        if not response.message.tool_calls:
+                            final_content = response.message.content
+                            break
+                        
+                        for tool in response.message.tool_calls:
+                            function_name = tool.function.name
+                            function_args = tool.function.arguments
+                            
+                            if function_name == 'search':
+                                tool_result = await asyncio.to_thread(
+                                    search, 
+                                    **function_args
+                                )
+                                
+                                messages_payload.append({
+                                    'role': 'tool',
+                                    'content': str(tool_result),
+                                    'name': function_name, 
+                                })
+
+                    # 5. Send the final response to Discord
                     if args.debug:
-                        await message.reply(response)
+                        await message.reply(f"Debug: {response}")
 
-                    response_content = response['message']['content']
-
-                    await message.reply(response_content[0:2000])
-                    for i in range(2000, len(response_content), 2000):
-                        await message.channel.send(response_content[i:i+2000])
+                    if final_content:
+                        # Split long messages if necessary (Discord 2000 char limit)
+                        await message.reply(final_content[0:2000])
+                        for i in range(2000, len(final_content), 2000):
+                            await message.channel.send(final_content[i:i+2000])
 
             except Exception as e:
                 await message.reply(f"Error: {e}")
@@ -89,7 +118,7 @@ class MyClient(discord.Client):
 
         messages.insert(0, {
             'role': 'system',
-            'content': 'Do not use markdown tables because they are unsupported (any other markdown is fine). Also, be concise with your response. There is no need to overthink or overdo anything.'
+            'content': 'Do not use markdown tables or LaTeX because they are unsupported (any other markdown is fine; you are allowed to use any formating during and only during thinking). Also, be concise with your response. There is no need to overthink or overdo anything. If a query seems to require search (real-time information), use the search tool.'
         })
 
         await self.request_queue.put((message, messages))

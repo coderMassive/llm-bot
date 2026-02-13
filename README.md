@@ -22,6 +22,4 @@ Ping with @username or reply to one of the bot's messages for the bot to respond
 - Sees reply chain as context
 - Queues messages when there's a lot coming in at the same time
 - Splits long output among several Discord messages when needed due to the message character limit
-
-## Roadmap:
-- Allow the model to search for information on the web
+- Search online for real-time information

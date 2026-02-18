@@ -30,9 +30,19 @@ class MyClient(discord.Client):
     async def setup_hook(self):
         self.worker_task = asyncio.create_task(self.queue_worker())
 
+    async def reply(self, message: discord.Message, content: str) -> None:
+        await message.reply(content[0:2000])
+        for i in range(2000, len(content), 2000):
+            await message.channel.send(content[i:i+2000])
+
     async def queue_worker(self):
         while True:
             message, messages_payload = await self.request_queue.get()
+
+            messages_payload.insert(0, {
+                'role': 'system',
+                'content': 'Be concise with your response. There is no need to overthink or overdo anything, but be friendly. Do not use markdown tables or LaTeX because they are unsupported (any other markdown is fine; you are allowed to use any formating during and only during thinking). If a query seems to require search (real-time information), use the search tool and cite the sources used in your reply. The search tool takes in one parameter called `query` which should be a string.'
+            })
 
             try:
                 async with message.channel.typing():
@@ -55,42 +65,45 @@ class MyClient(discord.Client):
                         for tool in response.message.tool_calls:
                             function_name = tool.function.name
                             function_args = tool.function.arguments
-                            
-                            if function_name == 'search':
-                                tool_result = await asyncio.to_thread(
-                                    search, 
-                                    **function_args
-                                )
-                                
-                                messages_payload.append({
-                                    'role': 'tool',
-                                    'content': str(tool_result),
-                                    'name': function_name, 
-                                })
+
+                            tool_result = None
+
+                            match function_name:
+                                case 'search':
+                                    tool_result = await asyncio.to_thread(
+                                        search, 
+                                        **function_args
+                                    )
+                                case _:
+                                    tool_result = f"The tool {function_name} does not exist."
+
+                            messages_payload.append({
+                                'role': 'tool',
+                                'content': str(tool_result),
+                                'name': function_name, 
+                            })
 
                     # 5. Send the final response to Discord
                     if args.debug:
-                        await message.reply(f"Debug: {response}")
+                        await self.reply(message, f"Debug: {response}")
 
                     if final_content:
-                        # Split long messages if necessary (Discord 2000 char limit)
-                        await message.reply(final_content[0:2000])
-                        for i in range(2000, len(final_content), 2000):
-                            await message.channel.send(final_content[i:i+2000])
+                        await self.reply(message, final_content)
 
             except Exception as e:
-                await message.reply(f"Error: {e}")
+                await self.reply(message, f"Error: {e}")
 
             self.request_queue.task_done()
 
     async def on_message(self, message: discord.Message):
+        if self.user is None: return
         if (f"<@{self.user.id}>" not in message.content):
             lookahead_msg = await message.channel.fetch_message(message.reference.message_id)
             if not (lookahead_msg and lookahead_msg.author == self.user): return
         elif message.author == self.user: return
 
         if args.maintenance:
-            await message.reply(random.choice(self.maintenance_messages))
+            await self.reply(message, random.choice(self.maintenance_messages))
             return
 
         messages = []
@@ -115,11 +128,6 @@ class MyClient(discord.Client):
                     break
             else:
                 break
-
-        messages.insert(0, {
-            'role': 'system',
-            'content': 'Do not use markdown tables or LaTeX because they are unsupported (any other markdown is fine; you are allowed to use any formating during and only during thinking). Also, be concise with your response. There is no need to overthink or overdo anything. If a query seems to require search (real-time information), use the search tool.'
-        })
 
         await self.request_queue.put((message, messages))
 
